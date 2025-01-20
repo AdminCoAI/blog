@@ -36,7 +36,7 @@ public class Example2Part1 {
 			testConnection();
 
 			//			ssh.ls().forEach( System.out::println );
-			//
+
 			//			final String content = ssh.downloadAsString( ".pam_environment" );
 			//			System.out.println( "------ File Content ------" );
 			//			System.out.println( content );
