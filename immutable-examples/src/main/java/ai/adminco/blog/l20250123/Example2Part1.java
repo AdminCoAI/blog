@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Vector;
+import java.util.stream.Stream;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.commons.lang3.StringUtils;
@@ -15,12 +16,12 @@ import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
 
-// Create an OO model that allows for the following:
+// Create an Object model that allows for the following:
 // 1. Use the Jsch Library to establish a list of tunnels through an SSH connection
 // 2. Also allow an SFTP to transfer files to the server and copy files down from the server
 // 3. The user of the classes could authenticate using basic (user/password) authentication or private key
 // 4. Should implement Closeable
-public class Example2 {
+public class Example2Part1 {
 
    public static class MutableAnswer {
 	  public static void main(String[] args) throws Exception {
@@ -36,8 +37,44 @@ public class Example2 {
 			ssh.setPrivateKeyPath( keyPath );
 
 			ssh.connect();
-			
-			
+
+			ssh.portForward( "localhost", 5432, "db", 5432 );
+			testConnection();
+
+			ssh.ls().forEach( System.out::println );
+
+			final String content = ssh.downloadAsString( ".pam_environment" );
+			System.out.println( "------ File Content ------" );
+			System.out.println( content );
+			System.out.println( "------ End File ----------" );
+		 }
+	  }
+
+	  private static void testConnection() throws Exception {
+		 // 1a. Test Connection
+		 final String dbHost = "localhost";
+		 final int dbPort = 5432;
+		 final String name = "yaas";
+		 final String dbUser = "super";
+		 final String dbPass = "postgres";
+		 final BasicDataSource ds = new BasicDataSource();
+		 ds.setDriverClassName( Driver.class.getName() );
+		 ds.setUrl( String.format( "jdbc:postgresql://%s:%s/%s?stringtype=unspecified",
+			   dbHost, dbPort, name ) );
+		 ds.setUsername( dbUser );
+		 ds.setPassword( dbPass );
+		 ds.setMaxTotal( -1 );
+
+		 try (
+			   final Connection conn = ds.getConnection();
+			   final Statement stmt = conn.createStatement();
+			   final ResultSet resultSet = stmt.executeQuery( "SELECT 1" );) {
+
+			if (resultSet.next()) {
+			   System.out.println( "Test query result: " + resultSet.getInt( 1 ) );
+			}
+		 } finally {
+			ds.close();
 		 }
 
 	  }
@@ -66,9 +103,22 @@ public class Example2 {
 			   session.setConfig( "StrictHostKeyChecking", "no" );
 			   session.connect();
 
+			   sftpChannel = (ChannelSftp) session.openChannel( "sftp" );
+			   sftpChannel.connect();
+
 			} catch (Throwable exception) {
 			   throw new RuntimeException( String.format(
 					 "Failed to connect to: %s", host ), exception );
+			}
+		 }
+
+		 public void portForward(String host, int port, String remoteHost, int remotePort) {
+			try {
+			   session.setPortForwardingL( host, port, remoteHost, remotePort );
+			} catch (Throwable exception) {
+			   throw new RuntimeException( String.format(
+					 "Failed to forward %s:%s to %s:%s", remoteHost,
+					 remotePort, host, port ), exception );
 			}
 		 }
 
@@ -76,8 +126,29 @@ public class Example2 {
 			return user;
 		 }
 
+		 public Stream<ChannelSftp.LsEntry> ls() {
+			try {
+			   final Vector<ChannelSftp.LsEntry> entries = sftpChannel.ls( "." );
+			   return entries.stream();
+			} catch (Throwable exception) {
+			   throw new RuntimeException( String.format( "Failed to list files" ), exception );
+			}
+		 }
+
 		 public void setUser(String user) {
 			this.user = user;
+		 }
+
+		 public String downloadAsString(String path) {
+			try {
+			   final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			   sftpChannel.get( path, baos );
+			   final String content = new String( baos.toByteArray(), StandardCharsets.UTF_8 );
+			   return content;
+			} catch (Throwable exception) {
+			   throw new RuntimeException( String.format(
+					 "Failed to download: %s", path ), exception );
+			}
 		 }
 
 		 public String getPassword() {
