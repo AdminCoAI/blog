@@ -1,0 +1,22 @@
+apply plugin: 'java-library';
+apply plugin: 'eclipse';
+
+sourceCompatibility = 1.8
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.sleepycat:je:18.3.12'
+    testImplementation 'junit:junit:4.12'
+}
+
+test {
+  useJUnit {
+    excludeCategories 'org.junit.experimental.categories.Categories$ExcludeCategory'
+  }
+}
+
+
