@@ -27,6 +27,7 @@ import com.jcraft.jsch.Session;
 // Remember what ports have been tunneled
 // Upload file to sftp
 // Change directory on the sftp connection
+// Get the current directory
 public class Example2Part2 {
 
    public static class MutableAnswer {

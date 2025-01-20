@@ -23,6 +23,155 @@ import com.jcraft.jsch.Session;
 // 4. Should implement Closeable
 public class Example2Part1 {
 
+   public static class ImmutableAnswer {
+	  public static void main(String[] args) throws Exception {
+		 final String host = "query";
+		 final int port = 22;
+		 final Auth auth = Auth.privatKeyFile(
+			   "developer", "/home/developer/.ssh/id_rsa" );
+
+		 try (Ssh ssh = new Ssh( host, port, auth )) {
+
+			ssh.portForward( "localhost", 5432, "db", 5432 );
+			testConnection();
+
+			//			ssh.ls().forEach( System.out::println );
+			//
+			//			final String content = ssh.downloadAsString( ".pam_environment" );
+			//			System.out.println( "------ File Content ------" );
+			//			System.out.println( content );
+			//			System.out.println( "------ End File ----------" );
+
+		 }
+	  }
+
+	  private static void testConnection() throws Exception {
+		 // 1a. Test Connection
+		 final String dbHost = "localhost";
+		 final int dbPort = 5432;
+		 final String name = "yaas";
+		 final String dbUser = "super";
+		 final String dbPass = "postgres";
+		 final BasicDataSource ds = new BasicDataSource();
+		 ds.setDriverClassName( Driver.class.getName() );
+		 ds.setUrl( String.format( "jdbc:postgresql://%s:%s/%s?stringtype=unspecified",
+			   dbHost, dbPort, name ) );
+		 ds.setUsername( dbUser );
+		 ds.setPassword( dbPass );
+		 ds.setMaxTotal( -1 );
+
+		 try (
+			   final Connection conn = ds.getConnection();
+			   final Statement stmt = conn.createStatement();
+			   final ResultSet resultSet = stmt.executeQuery( "SELECT 1" );) {
+
+			if (resultSet.next()) {
+			   System.out.println( "Test query result: " + resultSet.getInt( 1 ) );
+			}
+		 } finally {
+			ds.close();
+		 }
+
+	  }
+
+	  public static class Ssh implements AutoCloseable {
+		 private final String host;
+		 private final int port;
+		 private final Auth auth;
+		 private final JSch jsch;
+		 private final Session session;
+		 private final ChannelSftp sftpChannel;
+
+		 public Ssh(String host, int port, Auth auth) {
+			this.host = host;
+			this.port = port;
+			this.auth = auth;
+			jsch = new JSch();
+			try {
+			   auth.init( jsch );
+			   session = jsch.getSession( auth.user(), host, port );
+			   session.setConfig( "StrictHostKeyChecking", "no" );
+			   auth.init( session );
+			   session.connect();
+			   sftpChannel = (ChannelSftp) session.openChannel( "sftp" );
+			   sftpChannel.connect();
+			} catch (Throwable exception) {
+			   throw new RuntimeException( String.format(
+					 "Failed to connecto to: %s:%s", host, port ), exception );
+			}
+		 }
+
+		 public void portForward(String host, int port, String remoteHost, int remotePort) {
+			try {
+			   session.setPortForwardingL( host, port, remoteHost, remotePort );
+			} catch (Throwable exception) {
+			   throw new RuntimeException( String.format(
+					 "Failed to forward %s:%s to %s:%s", remoteHost,
+					 remotePort, host, port ), exception );
+			}
+		 }
+
+		 public String getHost() {
+			return host;
+		 }
+
+		 public int getPort() {
+			return port;
+		 }
+
+		 public Auth getAuth() {
+			return auth;
+		 }
+
+		 @Override
+		 public void close() throws Exception {
+			if (sftpChannel != null) {
+			   sftpChannel.disconnect();
+			}
+			if (session != null) {
+			   session.disconnect();
+			}
+		 }
+	  }
+
+	  public static abstract class Auth {
+		 public static PrivateKeyFile privatKeyFile(String user, String path) {
+			return new PrivateKeyFile( user, path );
+		 }
+
+		 public static class PrivateKeyFile extends Auth {
+			private final String user;
+			private final String path;
+
+			public PrivateKeyFile(String user, String path) {
+			   this.user = user;
+			   this.path = path;
+			}
+
+			@Override
+			public String user() {
+			   return user;
+			}
+
+			@Override
+			public void init(JSch jsch) throws Exception {
+			   jsch.addIdentity( path );
+			}
+
+			@Override
+			public void init(Session session) throws Exception {
+
+			}
+		 }
+
+		 public abstract String user();
+
+		 public abstract void init(JSch jsch) throws Exception;
+
+		 public abstract void init(Session session) throws Exception;
+	  }
+   }
+
    public static class MutableAnswer {
 	  public static void main(String[] args) throws Exception {
 		 final String user = "developer";
