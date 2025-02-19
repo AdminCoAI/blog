@@ -1,0 +1,25 @@
+apply plugin: 'java-library';
+apply plugin: 'eclipse';
+
+sourceCompatibility = 1.8
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.github.mwiede:jsch:0.2.22'
+    implementation 'org.postgresql:postgresql:42.4.5'
+    implementation 'org.apache.commons:commons-dbcp2:2.13.0'
+    implementation 'org.apache.commons:commons-lang3:3.17.0'
+    testImplementation 'junit:junit:4.12'
+}
+
+test {
+  useJUnit {
+    excludeCategories 'org.junit.experimental.categories.Categories$ExcludeCategory'
+  }
+}
+
+
